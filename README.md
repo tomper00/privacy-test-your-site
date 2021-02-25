@@ -1,6 +1,13 @@
 # privacy test your site
 Run [this script](https://github.com/tomper00/privacy-test-your-site/blob/main/scan-site.js) to find out what external scripts you request and in what country the server that hosts them lives.
 
+## Notice about this script
+
+The script will actually request other external sites (in the US) so please note that running it, will actually share  data about your browser with these 2 sites:
+
+1. https://dns.google
+2. https://get.geojs.io
+
 Note: This script will only look into scripts. Please beware that other resources such as Javascripts, fonts etc might be loaded as well.
 
 Also read our [blogpost](https://www.digitalist.se/blogg/svenska-myndigheter-maste-sluta-att-lacka-data-om-svenska-medborgares-surfvanor) (in Swedish) about why the public sector has to stop leaking data about their users.
@@ -11,9 +18,7 @@ Simply paste the code in the browser console to see from which sites you might l
 
 You can read further down how you can open the developer console in your browser.
 
-Note that the script will actually request other external sites (in the US) so please note that running this, will actually share your data with externa sites like:
-1. https://dns.google
-2. https://get.geojs.io
+
 
 
 The result might look like this:
