@@ -1,5 +1,5 @@
 /*
-Simply paste this code into you browser console
+Simply copy this code and paste it into you browser console and hit enter!
 Know issues:
 Conotent security policys on the site might stop the execution (this is a good thing).
 */
