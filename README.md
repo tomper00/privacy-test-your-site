@@ -12,6 +12,8 @@ Note: This script will only look into scripts. Please beware that other resource
 
 Also read our [blogpost](https://www.digitalist.se/blogg/svenska-myndigheter-maste-sluta-att-lacka-data-om-svenska-medborgares-surfvanor) (in Swedish) about why the public sector has to stop leaking data about their users.
 
+## How to use it
+
 Simply paste the code in the browser console to see from which sites you might load scripts.
 
 ![example](./example.png)
