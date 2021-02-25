@@ -39,29 +39,33 @@ var scripts = document.querySelectorAll("script[src]");
 var fullDomains = [];
 var domains = [];
 for (i=0;i<scripts.length;i++) {
-	var hstName = extractHostname(scripts[i].src);
-	if(window.location.host.includes(hstName)) {
-	   //console.log("do nothing" );
-	}
+    var hstName = extractHostname(scripts[i].src);
+    if(window.location.host.includes(hstName)) {
+       //console.log("do nothing" );
+    }
 
-	else {
-		if(domains.includes(hstName)) {
-			//do nothing
-		}
-		else {
-		   var response = await fetch('https://dns.google/resolve?name='+hstName);
+    else {
+        if(domains.includes(hstName)) {
+            //do nothing
+        }
+        else {
+           var response = await fetch('https://dns.google/resolve?name='+hstName);
            var json = await response.json();
-           console.log(json.Answer);
+           //console.log(json.Answer);
            if(json.Answer) {
-           var ipaddr = json.Answer.slice(-1)[0].data;	
+           var ipaddr = json.Answer.slice(-1)[0].data;
            var response2 = await fetch('https://get.geojs.io/v1/ip/country/'+ipaddr);
            var json2 = await response2.text();
 
            domains.push(new site(hstName, json2));
+           fullDomains.push(new fullSite(hstName, json2, scripts[i].src));
           }
-		}
-	} 
-}                                                
+        }
+    }
+}
+console.log("A list of all domains");
 console.table(domains);
+console.log("A list of all scripts");
+console.table(fullDomains);
 
-                               
+
