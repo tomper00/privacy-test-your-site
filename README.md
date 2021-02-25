@@ -1,5 +1,9 @@
-# privacy-test-your-site
-Run [this script](https://github.com/tomper00/privacy-test-your-site/blob/main/scan-site.js) to find out what external sites you request and in what country the server lives.
+# privacy test your site
+Run [this script](https://github.com/tomper00/privacy-test-your-site/blob/main/scan-site.js) to find out what external scripts you request and in what country the server that hosts them lives.
+
+Note: This script will only look into scripts. Please beware that other resources such as Javascripts, fonts etc might be loaded as well.
+
+Also read our [blogpost](https://www.digitalist.se/blogg/svenska-myndigheter-maste-sluta-att-lacka-data-om-svenska-medborgares-surfvanor) about why the public sector has to stop leaking data about their users.
 
 Simply paste the code in the browser console to see from which sites you might load scripts.
 
