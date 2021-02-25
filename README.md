@@ -3,6 +3,11 @@ Run this script to find out what external sites you request and in what country 
 
 Simply paste the code in the browser console to see from which sites you might load scripts.
 
+Note that the script will actually request other external sites (in the US) so please note that running this, will actually share your data with externa sites like:
+https://dns.google
+https://get.geojs.io
+
+
 The result might look like this:
 
 1. "siteimproveanalytics.com"	"US↵"
