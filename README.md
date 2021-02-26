@@ -1,6 +1,8 @@
 # privacy test your site
 Run [this script](https://github.com/tomper00/privacy-test-your-site/blob/main/scan-site.js) to find out what external scripts you request and in what country the server that hosts them lives.
 
+Note: for now it seems like it only works in Google Chrome.
+
 ## Notice about this script
 
 The script will actually request other external sites (in the US) so please note that running it, will actually share  data about your browser with these 2 sites:
