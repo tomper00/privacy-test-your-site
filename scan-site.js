@@ -6,14 +6,14 @@ Conotent security policys on the site might stop the execution (this is a good t
 function extractHostname(url) {
 
     if(url[0] == undefined) {
-        console.log("url undefined!");
-        console.log(url[0]);
-        console.log(url[1]);
+        //console.log("url undefined!");
+        //console.log(url[0]);
+        //console.log(url[1]);
         return "noVal";
     } 
     if(url[1] == "LINK" && url[0].search("data") != -1) {
-        console.log("exit 2");
-        console.log(url[0]);
+        //console.log("exit 2");
+        //console.log(url[0]);
         return "noVal";
     }
 
@@ -52,9 +52,9 @@ var siteHostName =  window.location.host;
 for(i=0;i<tags.length;i++) {
     if(tags[i].nodeName == "IMG" && tags[i].src.search("data") == -1) {
         urls.push([tags[i].href,tags[i].nodeName]);
-        console.log(tags[i].href);
-        console.log(tags[i].nodeName);
-        console.log(tags[i].src.search("data"));
+        //console.log(tags[i].href);
+        //console.log(tags[i].nodeName);
+        //console.log(tags[i].src.search("data"));
     }
     else if(tags[i].nodeName == "IMG" && tags[i].src.search("data") != -1) {
                 //Do nothing
@@ -64,14 +64,14 @@ for(i=0;i<tags.length;i++) {
     }
     else if(tags[i].href != undefined && tags[i].href != "" && tags[i].href.search(siteHostName) == -1) {
         urls.push([tags[i].href,tags[i].nodeName]);
-        console.log(tags[i].href);
-        console.log(tags[i].nodeName);
+        //console.log(tags[i].href);
+        //console.log(tags[i].nodeName);
     }
     else if(tags[i].src != undefined && tags[i].src != ""  && tags[i].src.search(siteHostName) == -1) {
        urls.push(tags[i].src);
        urls.push([tags[i].src,tags[i].nodeName]);
-       console.log(tags[i].src);
-       console.log(tags[i].nodeName);
+       //console.log(tags[i].src);
+       //console.log(tags[i].nodeName);
 
     }
 }
@@ -109,7 +109,7 @@ for (i=0;i<urls.length;i++) {
 
 console.log("A list of all domains");
 console.table(domains);
-console.log("A list of all urls");
+console.log("A list of external urls");
 console.table(fullDomains);
 
 
