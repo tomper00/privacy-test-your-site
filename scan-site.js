@@ -50,7 +50,10 @@ var tags = document.getElementsByTagName("*");
 const doNotCheck = ["SVG", "SVGAnimatedString", "SPAN", "A", "use"];
 var siteHostName =  window.location.host;
 for(i=0;i<tags.length;i++) {
-    if(tags[i].nodeName == "IMG" && tags[i].src.search("data") == -1) {
+    if(typeof tags[i].href == "object") {
+            //Do nothing
+    }        
+    else if(tags[i].nodeName == "IMG" && tags[i].src.search("data") == -1) {
         urls.push([tags[i].href,tags[i].nodeName]);
         //console.log(tags[i].href);
         //console.log(tags[i].nodeName);
