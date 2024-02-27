@@ -32,44 +32,95 @@ function extractHostname(url) {
     return hostname;
 }
 
+
 async function collectUrls() {
     const urls = [];
-    const elements = document.querySelectorAll('a, img, script, link');
-    elements.forEach(elm => {
-        // Improved to collect only external resources and avoid duplicates
-        let url = elm.tagName === 'A' ? elm.href : (elm.src || elm.href);
-        if (url && !urls.includes(url) && !url.includes(document.location.host)) {
-            urls.push(url);
+    // Define a mapping of element types to resource types
+    const elementTypeToResourceType = {
+        'SCRIPT': 'Script',
+        'LINK': 'CSS',
+        'IMG': 'Image',
+        'VIDEO': 'Video',
+        'AUDIO': 'Audio',
+        'OBJECT': 'Object',
+        'EMBED': 'Embed',
+        'IFRAME': 'Iframe',
+        'SOURCE': 'Media Source' // For video and audio sources
+    };
+
+    document.querySelectorAll('script[src], link[href][rel="stylesheet"], img[src], video[src], audio[src], source[src], object[data], embed[src], iframe[src], link[href][rel="icon"], link[href][rel="shortcut icon"], link[href][rel="preload"]').forEach((element) => {
+        const url = element.getAttribute('src') || element.getAttribute('href') || element.getAttribute('data');
+        if (url && !isInternalUrl(url)) {
+            // Determine the type based on the element
+            const type = elementTypeToResourceType[element.tagName] || 'Other';
+            urls.push({ url, type });
         }
     });
+
     return urls;
+}
+
+
+function parseCssForUrls(cssText) {
+    const urls = [];
+    // Regular expression to match URLs in CSS
+    const urlPattern = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
+    const importPattern = /@import\s+['"]?(url\()?(['"]?)([^'"\)]+?)\2(\))?['"]?;/g;
+
+    let match;
+    // Extracting URLs from url() patterns
+    while ((match = urlPattern.exec(cssText)) !== null) {
+        if (match[2] && !match[2].startsWith('data:')) { // Exclude data URLs
+            urls.push(match[2]);
+        }
+    }
+
+    // Extracting URLs from @import patterns
+    while ((match = importPattern.exec(cssText)) !== null) {
+        // match[3] contains the URL in @import rules
+        if (match[3] && !match[3].startsWith('data:')) { // Exclude data URLs
+            urls.push(match[3]);
+        }
+    }
+
+    return urls;
+}
+
+function isInternalUrl(url) {
+    const siteUrl = window.location.origin;
+    return url.startsWith(siteUrl) || url.startsWith('/');
 }
 
 
 async function generateCSV(data, filename) {
     const now = new Date();
     const dateStr = now.toISOString().replace(/:\d{2}\.\d{3}Z$/, '').replace(/T/, '-').replace(/:/g, '-');
-    const filenameParts = filename.split('.');
-    const extension = filenameParts.pop();
-    const filenameWithDate = `${filenameParts.join('.')}-${dateStr}.${extension}`;
+    const filenameWithDate = `${filename.split('.')[0]}-${dateStr}.csv`;
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    if (filename.includes("requests")) {
-        csvContent += "Domain,Country,Organization,Script,Type\n";
-        data.forEach(item => {
-            csvContent += `"${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.script)}","${escapeCSV(item.type)}"\n`;
-        });
-    } else {
-        csvContent += "Type,Key,Value\n";
-        data.forEach(item => {
-            // Use the third parameter to indicate this is a storage value needing anonymization
-            let anonymizedValue = item.value;
-            if(!item.value.includes("{")) 
-              anonymizedValue = anonymizeString(item.value); // Anonymize the value
-             
-            csvContent += `"${escapeCSV(item.type)}","${escapeCSV(item.key)}","${escapeCSV(anonymizedValue, true)}"\n`;
-        });
-    }
+    csvContent += filename.includes("requests") ? "Domain,Country,Organization,Script,Type\n" : "Type,Key,Value\n";
+    
+    data.forEach(item => {
+        // Apply anonymization only to storage values and ensure JSON values are handled appropriately
+        let value = item.value;
+        if (filename.includes("storage") && typeof value === 'string' && !value.startsWith('{')) {
+            value = anonymizeString(value);
+        } else if (typeof value === 'string' && value.startsWith('{')) {
+            try {
+                JSON.parse(value);
+                value = 'JSON: {"value":"*****"}'; // Simplified placeholder for valid JSON strings
+            } catch (e) {
+                // If it's not valid JSON, anonymize non-JSON string values
+                value = anonymizeString(value);
+            }
+        }
+
+        const line = filename.includes("requests") ?
+            `"${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.script)}","${escapeCSV(item.type)}"` :
+            `"${escapeCSV(item.type)}","${escapeCSV(item.key)}","${escapeCSV(value, true)}"`;
+
+        csvContent += line + "\n";
+    });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -80,26 +131,8 @@ async function generateCSV(data, filename) {
     document.body.removeChild(link);
 }
 
-function escapeCSV(value, isJsonValue = false, isStorageValue = false) {
-    if (isJsonValue) {
-        try {
-            const parsedValue = JSON.parse(value);
-            if (typeof parsedValue === 'object') {
-                // If the value is valid JSON and an object or array, replace it with a placeholder
-                return 'JSON: {"value":"*****"}';
-            }
-        } catch (e) {
-            // If parsing fails, it's not valid JSON, proceed with normal processing
-        }
-    }
-
-    // Apply anonymization only for storage values that are not JSON
-    if (!isJsonValue && isStorageValue && typeof value === 'string') {
-        value = anonymizeString(value);
-    }
-
-    if (value.includes('"') || value.includes(',') || value.includes('\n')) {
-        // If value contains double quotes, commas, or newlines, escape the double quotes and wrap in double quotes.
+function escapeCSV(value) {
+    if (typeof value === 'string' && (value.includes('"') || value.includes(',') || value.includes('\n'))) {
         return `"${value.replace(/"/g, '""')}"`;
     }
     return value;
@@ -107,20 +140,21 @@ function escapeCSV(value, isJsonValue = false, isStorageValue = false) {
 
 
 function anonymizeString(str) {
-    const maxLength = 25; // Maximum length before adding "..."
-    const maxAnonymizeCount = 4; // Maximum number of characters to anonymize
+    // Ensure string is not null
+    if (!str) return str;
+    
+    // Anonymize up to 6 middle characters
+    const maxAnonymizeCount = 6;
+    let partLength = Math.floor((str.length - maxAnonymizeCount) / 2);
+    partLength = partLength > 0 ? partLength : 0; // Ensure partLength is not negative
 
-    // Proceed with anonymization if the string is long enough
-    if (str.length > maxAnonymizeCount + 4) { // Check if string is long enough to anonymize
-        const startLength = (str.length - maxAnonymizeCount) / 2; // Calculate the length of the starting part to keep
-        const endStartIndex = Math.ceil(startLength + maxAnonymizeCount); // Calculate where the ending part starts
-        const endLength = str.length - endStartIndex; // Calculate the length of the ending part to keep
-        str = str.substring(0, Math.floor(startLength)) + '*'.repeat(maxAnonymizeCount) + str.substring(str.length - endLength);
+    if (str.length > maxAnonymizeCount) {
+        str = `${str.substring(0, partLength)}${'*'.repeat(Math.min(maxAnonymizeCount, str.length - 2 * partLength))}${str.substring(str.length - partLength)}`;
     }
     
-    // Check if the string exceeds the maxLength after anonymization and truncate if necessary
-    if (str.length > maxLength) {
-        str = str.substring(0, maxLength - 3) + '...';
+    // Truncate and add "..." if longer than 25 characters
+    if (str.length > 25) {
+        str = `${str.substring(0, 22)}...`;
     }
     
     return str;
@@ -131,7 +165,7 @@ async function analyzeAndReport() {
     const urls = await collectUrls();
     const domainsInfo = [];
 
-    for (const url of urls) {
+    for (const { url, type } of urls) {
         const hostname = extractHostname(url);
         if (hostname === "noVal") continue;
         const dnsResponse = await fetch(`https://dns.google/resolve?name=${hostname}`);
@@ -139,7 +173,7 @@ async function analyzeAndReport() {
         if (dnsData.Answer) {
             const ip = dnsData.Answer.slice(-1)[0].data;
             const { country, organization } = await fetchCountryAndOrg(ip);
-            domainsInfo.push({ domain: hostname, country, organization, script: url, type: 'REQUEST' });
+            domainsInfo.push({ domain: hostname, country, organization, script: url, type }); // Use determined type
         }
     }
 
