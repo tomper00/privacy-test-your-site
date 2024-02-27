@@ -1,118 +1,134 @@
 /*
 Simply copy this code and paste it into you browser console and hit enter!
+
+It will log all external requests to the console and also generate a csv files.
+We will also generate a csv listing all cookies, localStorage and sessionsStorage items. 
+
+
 Know issues:
-Conotent security policys on the site might stop the execution (this is a good thing).
+Content security policys on the site might stop the execution (this is a good thing).
+If that is the case you can install a browser plugin to temorarly disable CSP for a site, then run the script and then dont forget to anable CSPs again.
+Just search plugin store for Disable CSP to find alternatives
 */
+async function fetchCountryAndOrg(ip) {
+    const response = await fetch(`https://get.geojs.io/v1/ip/geo/${ip}.json`);
+    const data = await response.json();
+    return { country: data.country, organization: data.organization_name || 'Unknown' };
+}
+
 function extractHostname(url) {
-
-    if(url[0] == undefined) {
-        //console.log("url undefined!");
-        //console.log(url[0]);
-        //console.log(url[1]);
-        return "noVal";
-    } 
-    if(url[1] == "LINK" && url[0].search("data") != -1) {
-        //console.log("exit 2");
-        //console.log(url[0]);
-        return "noVal";
-    }
-
-    var hostname;
+    // Improved extraction logic to handle various URL formats robustly
+    let hostname;
     //find & remove protocol (http, ftp, etc.) and get hostname
-
-    if (url[0].indexOf("//") > -1) {
-        hostname = url[0].split('/')[2];
+    if (url.indexOf("//") > -1) {
+        hostname = url.split('/')[2];
+    } else {
+        hostname = url.split('/')[0];
     }
-    else {
-        hostname = url[0].split('/')[0];
-    }
-
     //find & remove port number
     hostname = hostname.split(':')[0];
     //find & remove "?"
     hostname = hostname.split('?')[0];
-
     return hostname;
 }
 
-function site(domain, country, script) {
-  this.domain = domain;
-  this.country = country;
-}
-function fullSite(domain, country, script) {
-  this.domain = domain;
-  this.country = country;
-  this.script = script;
-}
-
-var urls = [];
-var tags = document.getElementsByTagName("*");
-const doNotCheck = ["SVG", "SVGAnimatedString", "SPAN", "A", "use"];
-var siteHostName =  window.location.host;
-for(i=0;i<tags.length;i++) {
-    if(typeof tags[i].href == "object") {
-            //Do nothing
-    }        
-    else if(tags[i].nodeName == "IMG" && tags[i].src.search("data") == -1) {
-        urls.push([tags[i].href,tags[i].nodeName]);
-        //console.log(tags[i].href);
-        //console.log(tags[i].nodeName);
-        //console.log(tags[i].src.search("data"));
-    }
-    else if(tags[i].nodeName == "IMG" && tags[i].src.search("data") != -1) {
-                //Do nothing
-    }
-    else if(doNotCheck.includes(tags[i].nodeName) ) {
-        //Do nothing
-    }
-    else if(tags[i].href != undefined && tags[i].href != "" && tags[i].href.search(siteHostName) == -1) {
-        urls.push([tags[i].href,tags[i].nodeName]);
-        //console.log(tags[i].href);
-        //console.log(tags[i].nodeName);
-    }
-    else if(tags[i].src != undefined && tags[i].src != ""  && tags[i].src.search(siteHostName) == -1) {
-       urls.push(tags[i].src);
-       urls.push([tags[i].src,tags[i].nodeName]);
-       //console.log(tags[i].src);
-       //console.log(tags[i].nodeName);
-
-    }
-}
-
-
-var fullDomains = [];
-var domains = [];
-for (i=0;i<urls.length;i++) {
-    var hstName = extractHostname(urls[i]);
-    if(window.location.host.includes(hstName)) {
-       //console.log("do nothing" );
-    }
-    else if(hstName == "noVal") {
-       //console.log("do nothing" );
-    }
-    else {
-        if(domains.includes(hstName)) {
-            //do nothing
+async function collectUrls() {
+    const urls = [];
+    const elements = document.querySelectorAll('a, img, script, link');
+    elements.forEach(elm => {
+        // Improved to collect only external resources and avoid duplicates
+        let url = elm.tagName === 'A' ? elm.href : (elm.src || elm.href);
+        if (url && !urls.includes(url) && !url.includes(document.location.host)) {
+            urls.push(url);
         }
-        else {
-           var response = await fetch('https://dns.google/resolve?name='+hstName);
-           var json = await response.json();
-           //console.log(json.Answer);
-           if(json.Answer) {
-           var ipaddr = json.Answer.slice(-1)[0].data;
-           var response2 = await fetch('https://get.geojs.io/v1/ip/country/'+ipaddr);
-           var json2 = await response2.text();
+    });
+    return urls;
+}
 
-           domains.push(new site(hstName, json2));
-           fullDomains.push(new fullSite(hstName, json2, urls[i][0]));
-          }
+async function generateCSV(data, filename) {
+    let csvContent = "data:text/csv;charset=utf-8,";
+    if (filename.includes("requests")) {
+        csvContent += "Domain,Country,Organization,Script,Type\n";
+        data.forEach(item => {
+            csvContent += `"${item.domain}","${item.country}","${item.organization}","${item.script}","${item.type}"\n`;
+        });
+    } else {
+        csvContent += "Type,Key,Value\n";
+        data.forEach(item => {
+            // Improved to handle commas and quotes in values
+            csvContent += `"${item.type}","${item.key}","${anonymizeValue(item.value)}"\n`;
+        });
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link); // Required for FF
+    link.click();
+    document.body.removeChild(link);
+}
+
+async function analyzeAndReport() {
+    const urls = await collectUrls();
+    const domainsInfo = [];
+
+    for (const url of urls) {
+        const hostname = extractHostname(url);
+        if (hostname === "noVal") continue;
+        const dnsResponse = await fetch(`https://dns.google/resolve?name=${hostname}`);
+        const dnsData = await dnsResponse.json();
+        if (dnsData.Answer) {
+            const ip = dnsData.Answer.slice(-1)[0].data;
+            const { country, organization } = await fetchCountryAndOrg(ip);
+            domainsInfo.push({ domain: hostname, country, organization, script: url, type: 'REQUEST' });
         }
     }
+
+    await generateCSV(domainsInfo, `privacy-report-requests-${window.location.host}.csv`);
+
+    // Collect and report storage
+    const storageItems = collectStorage();
+    await generateCSV(storageItems, `privacy-report-storage-${window.location.host}.csv`);
 }
 
-console.log("A list of all domains");
-console.table(domains);
-console.log("A list of external urls");
-console.table(fullDomains);
+
+function collectStorage() {
+    const storageItems = [];
+    // Improved collection logic
+
+    // Collect localStorage and sessionStorage items
+    ["localStorage", "sessionStorage"].forEach(storageType => {
+        for (let i = 0; i < window[storageType].length; i++) {
+            const key = window[storageType].key(i);
+            const value = window[storageType].getItem(key);
+            storageItems.push({ type: storageType, key, value }); // Removed party information
+        }
+    });
+
+    // Collect cookies
+    document.cookie.split(';').forEach(cookie => {
+        const parts = cookie.split('=');
+        const key = parts.shift().trim();
+        const value = parts.join('=');
+        storageItems.push({ type: 'COOKIE', key, value }); // Removed party information
+    });
+
+    return storageItems;
+}
+
+function anonymizeValue(value) {
+    if (value.length <= 6) {
+        return value; // Return the value as is if too short
+    }
+    const maskLength = Math.floor(value.length * 0.6); // Mask 60% of the value
+    const startLength = Math.floor((value.length - maskLength) / 2);
+    const endLength = value.length - maskLength - startLength;
+    const maskedValue = value.substr(0, startLength) + '*'.repeat(maskLength) + value.substr(value.length - endLength);
+    return maskedValue;
+}
+
+analyzeAndReport();
+
 
 
