@@ -45,12 +45,10 @@ async function collectUrls() {
     return urls;
 }
 
+
 async function generateCSV(data, filename) {
-    // Generate the current date and time string in the format YYYY-MM-DD-HH-MM
     const now = new Date();
     const dateStr = now.toISOString().replace(/:\d{2}\.\d{3}Z$/, '').replace(/T/, '-').replace(/:/g, '-');
-
-    // Insert the date string before the file extension
     const filenameParts = filename.split('.');
     const extension = filenameParts.pop();
     const filenameWithDate = `${filenameParts.join('.')}-${dateStr}.${extension}`;
@@ -59,23 +57,73 @@ async function generateCSV(data, filename) {
     if (filename.includes("requests")) {
         csvContent += "Domain,Country,Organization,Script,Type\n";
         data.forEach(item => {
-            csvContent += `"${item.domain}","${item.country}","${item.organization}","${item.script}","${item.type}"\n`;
+            csvContent += `"${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.script)}","${escapeCSV(item.type)}"\n`;
         });
     } else {
         csvContent += "Type,Key,Value\n";
         data.forEach(item => {
-            // Improved to handle commas and quotes in values
-            csvContent += `"${item.type}","${item.key}","${anonymizeValue(item.value)}"\n`;
+            // Use the third parameter to indicate this is a storage value needing anonymization
+            let anonymizedValue = item.value;
+            if(!item.value.includes("{")) 
+              anonymizedValue = anonymizeString(item.value); // Anonymize the value
+             
+            csvContent += `"${escapeCSV(item.type)}","${escapeCSV(item.key)}","${escapeCSV(anonymizedValue, true)}"\n`;
         });
     }
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filenameWithDate); // Use the modified filename
-    document.body.appendChild(link); // Required for FF
+    link.setAttribute("download", filenameWithDate);
+    document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+function escapeCSV(value, isJsonValue = false, isStorageValue = false) {
+    if (isJsonValue) {
+        try {
+            const parsedValue = JSON.parse(value);
+            if (typeof parsedValue === 'object') {
+                // If the value is valid JSON and an object or array, replace it with a placeholder
+                return 'JSON: {"value":"*****"}';
+            }
+        } catch (e) {
+            // If parsing fails, it's not valid JSON, proceed with normal processing
+        }
+    }
+
+    // Apply anonymization only for storage values that are not JSON
+    if (!isJsonValue && isStorageValue && typeof value === 'string') {
+        value = anonymizeString(value);
+    }
+
+    if (value.includes('"') || value.includes(',') || value.includes('\n')) {
+        // If value contains double quotes, commas, or newlines, escape the double quotes and wrap in double quotes.
+        return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+}
+
+
+function anonymizeString(str) {
+    const maxLength = 25; // Maximum length before adding "..."
+    const maxAnonymizeCount = 4; // Maximum number of characters to anonymize
+
+    // Proceed with anonymization if the string is long enough
+    if (str.length > maxAnonymizeCount + 4) { // Check if string is long enough to anonymize
+        const startLength = (str.length - maxAnonymizeCount) / 2; // Calculate the length of the starting part to keep
+        const endStartIndex = Math.ceil(startLength + maxAnonymizeCount); // Calculate where the ending part starts
+        const endLength = str.length - endStartIndex; // Calculate the length of the ending part to keep
+        str = str.substring(0, Math.floor(startLength)) + '*'.repeat(maxAnonymizeCount) + str.substring(str.length - endLength);
+    }
+    
+    // Check if the string exceeds the maxLength after anonymization and truncate if necessary
+    if (str.length > maxLength) {
+        str = str.substring(0, maxLength - 3) + '...';
+    }
+    
+    return str;
 }
 
 
