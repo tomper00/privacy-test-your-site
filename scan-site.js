@@ -46,6 +46,15 @@ async function collectUrls() {
 }
 
 async function generateCSV(data, filename) {
+    // Generate the current date and time string in the format YYYY-MM-DD-HH-MM
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/:\d{2}\.\d{3}Z$/, '').replace(/T/, '-').replace(/:/g, '-');
+
+    // Insert the date string before the file extension
+    const filenameParts = filename.split('.');
+    const extension = filenameParts.pop();
+    const filenameWithDate = `${filenameParts.join('.')}-${dateStr}.${extension}`;
+
     let csvContent = "data:text/csv;charset=utf-8,";
     if (filename.includes("requests")) {
         csvContent += "Domain,Country,Organization,Script,Type\n";
@@ -63,11 +72,12 @@ async function generateCSV(data, filename) {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filename);
+    link.setAttribute("download", filenameWithDate); // Use the modified filename
     document.body.appendChild(link); // Required for FF
     link.click();
     document.body.removeChild(link);
 }
+
 
 async function analyzeAndReport() {
     const urls = await collectUrls();
