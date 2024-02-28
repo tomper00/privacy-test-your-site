@@ -20,26 +20,46 @@ Simply paste the code in the browser console to see from which sites you might l
 
 ![example](./example.png)
 
-You can read further down how you can open the developer console in your browser.
+This script will generate 3 files:
+privacy-report-requests-<hostname>-<date>.csv
+privacy-report-storage-<hostname>-<date>.csv
+privacy-report-externals-<hostname>-<date>.csv
 
+### privacy-report-requests
+Will list all external requests from the page you run the script on by simple looking into all elements like:
+document.querySelectorAll('script[src], link[href][rel="stylesheet"], img[src], video[src], audio[src], source[src], object[data], embed[src], iframe[src], link[href][rel="icon"], link[href][rel="shortcut icon"], link[href][rel="preload"]')
 
+For every external request we look up the hostname to fetch location and organisation of the server you request.
+Path (url	where script was executed)
+Domain (of the request)
+Country (where the requested server is located)
+Organization (That owns the server)
+Script (The request)
+Type (script/css etc)
 
+**Important** to understand that even id the country is within the EU it is a problem if the Organisation is for example from USA, because of the FISA 702 law that requires companies to hand out data to USA goverment agencyies upon request no matter where the data center is located. (In practice this means you will never support GDPR).
 
-The result might look like this:
+### privacy-report-storage
+We list cookies and values stored in localStorage or sessionStorage.
+Note: This report is never complete, since we can not always read all cookies (security reasons). 
 
-1. "siteimproveanalytics.com"	"US↵"
-2. "www.google-analytics.com"	"US↵"
-3. "regstat.regeringen.se"	"SE↵"
-4. "www.googletagmanager.com"	"US↵"
-5. "play2.qbrick.com"	"SE↵"
-6. "play2.qbrick.com"	"SE↵"
-7. "play2.qbrick.com"	"SE↵"
-8. "play2.qbrick.com"	"SE↵"
-9. "httpcache0-90226-cachedown0.dna.qbrick.com"	"SE↵"
-10. "play2.qbrick.com"	"SE↵"
-11. "imasdk.googleapis.com"	"US↵"
-12. "dl.episerver.net"	"US↵"
+Path (url	where script was executed)
+Type (Cookie, localStroage, sessionStorage)
+Key (the name)
+Value (Truncated and semi masked value for privacy reasons, so that you can share the report)
 
+## privacy-report-externals
+This report searches  Javascripts and CSS for external references. 
+This report should be used to investigate the resources since a reference in this list does not automatically mean the resource was or will be done.
+Use it to go though the files and investigate if it might be an issue. 
+
+Path (url	where script was executed)
+Script (The scanned script)
+Exturl (The external reference)
+Domain (of the request)
+Country (where the requested server is located)
+Organization (That owns the server)
+Type (script/css)
 
 
 ## How to open the console in different browsers.
