@@ -10,6 +10,9 @@ Content security policys on the site might stop the execution (this is a good th
 If that is the case you can install a browser plugin to temorarly disable CSP for a site, then run the script and then dont forget to anable CSPs again.
 Just search plugin store for Disable CSP to find alternatives
 */
+var theHost = window.location.hostname.replace(".", "-");
+console.log("host: " + theHost);
+
 async function fetchCountryAndOrg(ip) {
     const response = await fetch(`https://get.geojs.io/v1/ip/geo/${ip}.json`);
     const data = await response.json();
@@ -62,6 +65,8 @@ async function collectUrls() {
 
 
 function parseCssForUrls(cssText) {
+    console.log("parseCssForUrls");
+
     const urls = [];
     // Regular expression to match URLs in CSS
     const urlPattern = /url\(\s*(['"]?)(.*?)\1\s*\)/g;
@@ -93,43 +98,87 @@ function isInternalUrl(url) {
 
 
 async function generateCSV(data, filename) {
+    console.log("generateCSV - filename: " + filename);
+
     const now = new Date();
     const dateStr = now.toISOString().replace(/:\d{2}\.\d{3}Z$/, '').replace(/T/, '-').replace(/:/g, '-');
     const filenameWithDate = `${filename.split('.')[0]}-${dateStr}.csv`;
 
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += filename.includes("requests") ? "Domain,Country,Organization,Script,Type\n" : "Type,Key,Value\n";
-    
-    data.forEach(item => {
-        // Apply anonymization only to storage values and ensure JSON values are handled appropriately
-        let value = item.value;
-        if (filename.includes("storage") && typeof value === 'string' && !value.startsWith('{')) {
-            value = anonymizeString(value);
-        } else if (typeof value === 'string' && value.startsWith('{')) {
-            try {
-                JSON.parse(value);
-                value = 'JSON: {"value":"*****"}'; // Simplified placeholder for valid JSON strings
-            } catch (e) {
-                // If it's not valid JSON, anonymize non-JSON string values
+    let csvContent = "";
+    if(filename.includes("externals"))
+        csvContent +=  "Path,Script,Exturl,Domain,Country,Organization,Type\n";
+    else if(filename.includes("storage"))
+        csvContent += "Path,Type,Key,Value\n";
+    else
+        csvContent +=  "Path,Domain,Country,Organization,Script,Type\n";
+
+    //console.log(filename);
+    //console.log(data);
+    await new Promise((resolve) => {
+        data.forEach(item => {
+            // Apply anonymization only to storage values and ensure JSON values are handled appropriately
+            let value = item.value;
+            if (filename.includes("storage") && typeof value === 'string' && !value.startsWith('{')) {
                 value = anonymizeString(value);
             }
-        }
+            else if (filename.includes("externals") )
+            {   
+                //console.log("External");
+            }
+            else if (typeof value === 'string' && value.startsWith('{')) {
+                try {
+                    JSON.parse(value);
+                    value = 'JSON: {"value":"*****"}'; // Simplified placeholder for valid JSON strings
+                } catch (e) {
+                    // If it's not valid JSON, anonymize non-JSON string values
+                    value = anonymizeString(value);
+                }
+            }
 
-        const line = filename.includes("requests") ?
-            `"${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.script)}","${escapeCSV(item.type)}"` :
-            `"${escapeCSV(item.type)}","${escapeCSV(item.key)}","${escapeCSV(value, true)}"`;
+            //add the line to the csv
+            let line = "";
+            if(filename.includes("externals"))
+                line = `"${window.location.pathname}","${escapeCSV(item.script)}","${escapeCSV(item.exturl)}","${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.type)}"`;
+            else if(filename.includes("storage"))
+                line = `"${window.location.pathname}","${escapeCSV(item.type)}","${escapeCSV(item.key)}","${escapeCSV(value, true)}"`;
+            else
+                line = `"${window.location.pathname}","${escapeCSV(item.domain)}","${escapeCSV(item.country)}","${escapeCSV(item.organization)}","${escapeCSV(item.script)}","${escapeCSV(item.type)}"`;
 
-        csvContent += line + "\n";
+            csvContent += line + "\n";
+        });
+
+        setTimeout(() => {
+            resolve();
+        }, 1000); // Add a 1-second timeout
     });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", filenameWithDate);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setTimeout(() => {
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    
+        // Create a URL for the Blob object
+        const url = URL.createObjectURL(blob);
+        
+        // Create a temporary link element to trigger the download
+        const alink = document.createElement("a");
+        alink.setAttribute("href", url);
+        alink.setAttribute("target", "_blank");
+        alink.setAttribute("download", filenameWithDate);
+        alink.setAttribute("data-matomo-mask","" );
+        alink.setAttribute("data-piwik-mask","" );
+        
+        // Append the link to the document, trigger the download, and then remove the link
+        document.body.appendChild(alink);
+        alink.click();
+        document.body.removeChild(alink);
+        
+        // Release the allocated URL to free up resources
+        URL.revokeObjectURL(url);
+
+    }, 3000); // Add a 1-second timeout
+
 }
+
+
 
 function escapeCSV(value) {
     if (typeof value === 'string' && (value.includes('"') || value.includes(',') || value.includes('\n'))) {
@@ -176,12 +225,14 @@ async function analyzeAndReport() {
             domainsInfo.push({ domain: hostname, country, organization, script: url, type }); // Use determined type
         }
     }
-
-    await generateCSV(domainsInfo, `privacy-report-requests-${window.location.host}.csv`);
+    console.log("generateCSV domainsInfo");
+    await generateCSV(domainsInfo, `privacy-report-requests-${theHost}.csv`);
 
     // Collect and report storage
     const storageItems = collectStorage();
-    await generateCSV(storageItems, `privacy-report-storage-${window.location.host}.csv`);
+    console.log("generateCSV storageItems");
+    await generateCSV(storageItems, `privacy-report-storage-${theHost}.csv`);
+    
 }
 
 
@@ -220,7 +271,88 @@ function anonymizeValue(value) {
     return maskedValue;
 }
 
+async function fetchAndFindExternalUrls(url, type) {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.text();
+        const externalUrls = (data.match(/https?:\/\/[^\s"']+/g) || [])
+            .filter(u => !u.startsWith(location.origin) && !u.includes('chrome-extension'));
+        return externalUrls.map(externalUrl => ({ Resource: url, 'External URL': externalUrl, Type: type }));
+    } catch (error) {
+        console.error('Error fetching or processing:', url, error);
+        return [{ Resource: url, 'External URL': 'Blocked by CORS or other error', Type: type }];
+    }
+}
+
+async function processInlineCssAndAddToReport(reports) {
+    console.log("processInlineCssAndAddToReport");
+
+    const inlineStyles = [...document.querySelectorAll('style'), ...document.querySelectorAll('[style]')];
+    
+    inlineStyles.forEach(element => {
+        let cssText = element.tagName.toLowerCase() === 'style' ? element.textContent : element.getAttribute('style');
+        // Extract URLs from CSS text and filter for external URLs only
+        const urlsInCss = (cssText.match(/url\(['"]?(https?:\/\/[^\s"')]+)['"]?\)/g) || [])
+            .map(urlMatch => urlMatch.match(/https?:\/\/[^\s"')]+/)[0])
+            .filter(u => !u.startsWith(location.origin) && !u.includes('chrome-extension'));
+
+        urlsInCss.forEach(url => {
+            reports.push({ Resource: 'Inline CSS', 'External URL': url, Type: 'CSS' });
+        });
+    });
+}
+
+async function processResourcesIncludingInlineCss() {
+    console.log("Processing resources");
+    const resources = [
+        ...document.querySelectorAll('script[src]'), 
+        ...document.querySelectorAll('link[rel="stylesheet"][href]')
+    ];
+
+    let reports = [];
+
+    for (const resource of resources) {
+        const url = resource.src || resource.href;
+        if (!url.includes('chrome-extension') && !url.startsWith('/')) {
+            const type = resource.tagName.toLowerCase() === 'script' ? 'SCRIPT' : 'CSS';
+            const externalUrlsReports = await fetchAndFindExternalUrls(url, type);
+            reports = reports.concat(externalUrlsReports);
+        }
+    }
+
+    await processInlineCssAndAddToReport(reports); // Process inline CSS for external URLs and add to reports
+
+    //console.table(reports);
+    let final = [];
+
+    //loop through the reports and add to the table and lookup the domain
+    for (const report of reports) {
+        const hostname = extractHostname(report['External URL']);
+        const exturl = report['External URL'];
+        //console.log(report);
+        if (hostname === "noVal" || hostname.includes("CORS") ) continue;
+        const dnsResponse = await fetch(`https://dns.google/resolve?name=${hostname}`);
+        const dnsData = await dnsResponse.json();
+        if (dnsData.Answer) {
+            const ip = dnsData.Answer.slice(-1)[0].data;
+            const { country, organization } = await fetchCountryAndOrg(ip);
+            final.push({ script: report.Resource, exturl: exturl, type: report.Type, domain: hostname, country: country, organization: organization}); // Use determined type
+            //return externalUrls.map(externalUrl => ({ Resource: url, 'External URL': externalUrl, Type: type }));
+
+        }
+    }
+    
+    //console.table(final);
+    await generateCSV(final, `privacy-report-externals-${theHost}.csv`);
+
+
+}
+
 analyzeAndReport();
+processResourcesIncludingInlineCss();
 
 
 
